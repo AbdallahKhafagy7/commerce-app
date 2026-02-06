@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Full Backend Test Frontend</title>
+<style>
+  body { font-family: Arial; padding: 20px; }
+  input, select { display: block; margin: 5px 0; padding: 5px; width: 200px; }
+  button { margin: 5px 0; padding: 5px 10px; }
+  .section { border: 1px solid #ccc; padding: 10px; margin-bottom: 20px; max-width: 400px; }
+  .message { color: green; }
+  .error { color: red; }
+  ul { padding-left: 20px; }
+  li { margin-bottom: 5px; }
+  input[type="number"] { width: 50px; }
+</style>
+</head>
+<body>
+
+<h1>Full Backend Test Frontend</h1>
+
+<!-- ================= AUTH ================= -->
+<div class="section">
+  <h2>Signup</h2>
+  <input type="text" id="signup-username" placeholder="Username">
+  <input type="email" id="signup-email" placeholder="Email">
+  <input type="password" id="signup-password" placeholder="Password">
+  <button onclick="signup()">Signup</button>
+  <p id="signup-msg"></p>
+</div>
+
+<div class="section">
+  <h2>Login</h2>
+  <input type="email" id="login-email" placeholder="Email">
+  <input type="password" id="login-password" placeholder="Password">
+  <button onclick="login()">Login</button>
+  <button onclick="logout()">Logout</button>
+  <p id="login-msg"></p>
+</div>
+
+<div class="section">
+  <h2>Profile</h2>
+  <button onclick="getUser()">Load Profile</button>
+  <div id="user-info"></div>
+  <h3>Update Info</h3>
+  <input type="text" id="update-username" placeholder="New Username">
+  <input type="email" id="update-email" placeholder="New Email">
+  <input type="password" id="update-password" placeholder="New Password">
+  <button onclick="updateUser()">Update Profile</button>
+  <p id="update-msg"></p>
+</div>
+
+<!-- ================= CATEGORIES ================= -->
+<div class="section">
+  <h2>Categories</h2>
+  <ul id="categories"></ul>
+  <h3>Add Category</h3>
+  <input type="text" id="new-category-name" placeholder="Category Name">
+  <input type="text" id="new-category-desc" placeholder="Category Description">
+  <button onclick="createCategory()">Create Category</button>
+  <p id="category-msg"></p>
+</div>
+
+<!-- ================= PRODUCTS ================= -->
+<div class="section">
+  <h2>Products</h2>
+  <ul id="products"></ul>
+  <h3>Add Product</h3>
+  <input type="text" id="new-product-name" placeholder="Product Name">
+  <input type="number" id="new-product-price" placeholder="Price" min="0">
+  <input type="number" id="new-product-quantity" placeholder="Quantity" min="0">
+  <select id="new-product-category"></select>
+  <button onclick="createProduct()">Create Product</button>
+  <p id="product-msg"></p>
+</div>
+
+<!-- ================= CART ================= -->
+<div class="section">
+  <h2>Cart</h2>
+  <button id="createCartBtn">Create Cart</button>
+  <button id="deleteCartBtn">Delete Cart</button>
+  <ul id="cartItems"></ul>
+</div>
+
+<script>
+const API = "http://localhost:8080/api"; // change to your backend
+let cartID = null;
+
+// -------------------- AUTH --------------------
+async function signup() {
+  const username = document.getElementById("signup-username").value;
+  const email = document.getElementById("signup-email").value;
+  const password = document.getElementById("signup-password").value;
+  const msg = document.getElementById("signup-msg");
+  try {
+    const res = await fetch(`${API}/auth/signup`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      credentials: "include",
+      body: JSON.stringify({username, email, password})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
+    msg.textContent = data.message || "Signup successful";
+    msg.className = "message";
+    loadCategories();
+    loadProducts();
+  } catch(err) {
+    msg.textContent = err.message;
+    msg.className = "error";
+  }
+}
+
+async function login() {
+  const email = document.getElementById("login-email").value;
+  const password = document.getElementById("login-password").value;
+  const msg = document.getElementById("login-msg");
+  try {
+    const res = await fetch(`${API}/auth/login`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      credentials: "include",
+      body: JSON.stringify({email, password})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
+    msg.textContent = "Login successful!";
+    msg.className = "message";
+    loadCategories();
+    loadProducts();
+  } catch(err) {
+    msg.textContent = err.message;
+    msg.className = "error";
+  }
+}
+
+async function logout() {
+  const msg = document.getElementById("login-msg");
+  try {
+    const res = await fetch(`${API}/auth/logout`, {method:"POST", credentials:"include"});
+    const data = await res.json();
+    msg.textContent = data.message || "Logged out";
+    msg.className = "message";
+    document.getElementById("user-info").innerHTML = "";
+    cartID = null;
+    document.getElementById("cartItems").innerHTML = "";
+  } catch(err) { msg.textContent = err.message; msg.className="error"; }
+}
+
+async function getUser() {
+  const infoDiv = document.getElementById("user-info");
+  try {
+    const res = await fetch(`${API}/users`, {credentials:"include"});
+    if (!res.ok) throw new Error("Not logged in");
+    const data = await res.json();
+    infoDiv.innerHTML = `<p><strong>ID:</strong> ${data.id}</p>
+                         <p><strong>Username:</strong> ${data.username}</p>
+                         <p><strong>Email:</strong> ${data.email}</p>`;
+  } catch(err) { infoDiv.textContent = err.message; }
+}
+
+async function updateUser() {
+  const username = document.getElementById("update-username").value;
+  const email = document.getElementById("update-email").value;
+  const password = document.getElementById("update-password").value;
+  const msg = document.getElementById("update-msg");
+  try {
+    const res = await fetch(`${API}/users`, {
+      method: "PATCH",
+      headers: {"Content-Type": "application/json"},
+      credentials: "include",
+      body: JSON.stringify({username, email, password})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
+    msg.textContent = "Profile updated!";
+    msg.className = "message";
+    getUser();
+  } catch(err) { msg.textContent = err.message; msg.className = "error"; }
+}
+
+// -------------------- CATEGORIES --------------------
+async function loadCategories() {
+  try {
+    const categories = await fetch(`${API}/categories`, {credentials:"include"}).then(r=>r.json());
+    const ul = document.getElementById("categories");
+    const select = document.getElementById("new-product-category");
+    ul.innerHTML = ""; select.innerHTML = "";
+    categories.forEach(c=>{
+      const li = document.createElement("li");
+      li.textContent = `${c.name} - ${c.description}`;
+      ul.appendChild(li);
+      const opt = document.createElement("option");
+      opt.value = c._id; opt.textContent = c.name;
+      select.appendChild(opt);
+    });
+  } catch(err){ console.error(err); }
+}
+
+async function createCategory() {
+  const name = document.getElementById("new-category-name").value;
+  const desc = document.getElementById("new-category-desc").value;
+  const msg = document.getElementById("category-msg");
+  try {
+    const res = await fetch(`${API}/categories`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      credentials: "include",
+      body: JSON.stringify({name, description:desc})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
+    msg.textContent = "Category created!";
+    msg.className="message";
+    loadCategories();
+  } catch(err){ msg.textContent=err.message; msg.className="error"; }
+}
+
+// -------------------- PRODUCTS --------------------
+async function loadProducts() {
+  try {
+    const products = await fetch(`${API}/products`, {credentials:"include"}).then(r=>r.json());
+    const ul = document.getElementById("products");
+    ul.innerHTML = "";
+    products.forEach(p=>{
+      const li = document.createElement("li");
+      li.textContent = `${p.name} - $${p.price} - Stock: ${p.quantity}`;
+      const btn = document.createElement("button");
+      btn.textContent = "Add to Cart";
+      btn.onclick = () => addToCart(p._id, 1);
+      li.appendChild(btn);
+      ul.appendChild(li);
+    });
+  } catch(err){ console.error(err); }
+}
+
+async function createProduct() {
+  const name = document.getElementById("new-product-name").value;
+  const price = parseFloat(document.getElementById("new-product-price").value);
+  const quantity = parseInt(document.getElementById("new-product-quantity").value);
+  const categoryID = document.getElementById("new-product-category").value;
+  const msg = document.getElementById("product-msg");
+  try {
+    const res = await fetch(`${API}/products`, {
+      method:"POST",
+      headers: {"Content-Type":"application/json"},
+      credentials:"include",
+      body: JSON.stringify({name, price, quantity, categoryID})
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
+    msg.textContent="Product created!";
+    msg.className="message";
+    loadProducts();
+  } catch(err){ msg.textContent=err.message; msg.className="error"; }
+}
+
+// -------------------- CART --------------------
+document.getElementById("createCartBtn").onclick = async ()=>{
+  try {
+    const cart = await fetch(`${API}/carts`, {method:"POST", credentials:"include"}).then(r=>r.json());
+    cartID = cart._id;
+    alert("Cart created! ID: "+cartID);
+    loadCartItems();
+  } catch(err){ console.error(err); }
+};
+
+document.getElementById("deleteCartBtn").onclick = async ()=>{
+  try {
+    await fetch(`${API}/carts`, {method:"DELETE", credentials:"include"});
+    cartID=null;
+    document.getElementById("cartItems").innerHTML="";
+    alert("Cart deleted!");
+  } catch(err){ console.error(err); }
+};
+
+async function addToCart(productID, quantity) {
+  if (!cartID) return alert("Create a cart first!");
+  try {
+    await fetch(`${API}/carts/${cartID}/items`, {
+      method:"POST",
+      credentials:"include",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({productID, quantity})
+    });
+    loadCartItems();
+  } catch(err){ console.error(err); }
+}
+
+async function loadCartItems() {
+  if (!cartID) return;
+  try {
+    const items = await fetch(`${API}/carts/${cartID}/items`, {credentials:"include"}).then(r=>r.json());
+    const ul = document.getElementById("cartItems");
+    ul.innerHTML="";
+    items.forEach(item=>{
+      const li = document.createElement("li");
+      li.textContent = `${item.productID.name} - $${item.productID.price} - Qty: ${item.quantity} `;
+
+      const qtyInput = document.createElement("input");
+      qtyInput.type="number";
+      qtyInput.value=item.quantity;
+      qtyInput.onchange = async ()=>{
+        const q = parseInt(qtyInput.value);
+        await fetch(`${API}/cartItems/${item._id}`, {
+          method:"PATCH",
+          credentials:"include",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({quantity:q})
+        });
+        loadCartItems();
+      };
+      li.appendChild(qtyInput);
+
+      const delBtn = document.createElement("button");
+      delBtn.textContent="Delete";
+      delBtn.onclick = async ()=>{
+        await fetch(`${API}/cartItems/${item._id}`, {
+          method:"DELETE",
+          credentials:"include"
+        });
+        loadCartItems();
+      };
+      li.appendChild(delBtn);
+
+      ul.appendChild(li);
+    });
+  } catch(err){ console.error(err); }
+}
+
+// -------------------- INITIAL LOAD --------------------
+loadCategories();
+loadProducts();
+</script>
+</body>
+</html>
